@@ -329,6 +329,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * the future, the variable can be changed to be an AtomicLong,
      * and the shift/mask constants below adjusted. But until the need
      * arises, this code is a bit faster and simpler using an int.
+     * 使用(2^29)-1作为最大的线程数。目前使用int更为高效。
      *
      * The workerCount is the number of workers that have been
      * permitted to start and not permitted to stop.  The value may be
@@ -376,6 +377,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      */
     private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
     private static final int COUNT_BITS = Integer.SIZE - 3;
+    // 2^29 - 1
     private static final int CAPACITY   = (1 << COUNT_BITS) - 1;
 
     // runState is stored in the high-order bits
@@ -387,6 +389,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
     // Packing and unpacking ctl
     private static int runStateOf(int c)     { return c & ~CAPACITY; }
+
+    /**
+     *
+     * @param c
+     * @return
+     */
     private static int workerCountOf(int c)  { return c & CAPACITY; }
     private static int ctlOf(int rs, int wc) { return rs | wc; }
 
@@ -607,13 +615,16 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
          * @param firstTask the first task (null if none)
          */
         Worker(Runnable firstTask) {
-            setState(-1); // inhibit interrupts until runWorker
+            // inhibit interrupts until runWorker
+            setState(-1);
             this.firstTask = firstTask;
             this.thread = getThreadFactory().newThread(this);
         }
 
         /** Delegates main run loop to outer runWorker  */
+        @Override
         public void run() {
+            // 开始启动任务
             runWorker(this);
         }
 
@@ -901,19 +912,28 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             if (rs >= SHUTDOWN &&
                 ! (rs == SHUTDOWN &&
                    firstTask == null &&
-                   ! workQueue.isEmpty()))
+                   ! workQueue.isEmpty())) {
                 return false;
-
+            }
+            // 循环
             for (;;) {
+                // 运行的线程数
                 int wc = workerCountOf(c);
+                // 超过最大值或者大于核心线程数或者最大线程数
                 if (wc >= CAPACITY ||
-                    wc >= (core ? corePoolSize : maximumPoolSize))
+                    wc >= (core ? corePoolSize : maximumPoolSize)) {
                     return false;
-                if (compareAndIncrementWorkerCount(c))
+                }
+                // CAS 操作
+                if (compareAndIncrementWorkerCount(c)) {
                     break retry;
-                c = ctl.get();  // Re-read ctl
-                if (runStateOf(c) != rs)
+                }
+                // Re-read ctl
+                c = ctl.get();
+                // 失败
+                if (runStateOf(c) != rs) {
                     continue retry;
+                }
                 // else CAS failed due to workerCount change; retry inner loop
             }
         }
@@ -922,10 +942,12 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         boolean workerAdded = false;
         Worker w = null;
         try {
+            // 创建工作线程
             w = new Worker(firstTask);
             final Thread t = w.thread;
             if (t != null) {
                 final ReentrantLock mainLock = this.mainLock;
+                // 主池锁
                 mainLock.lock();
                 try {
                     // Recheck while holding lock.
@@ -935,25 +957,30 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
                     if (rs < SHUTDOWN ||
                         (rs == SHUTDOWN && firstTask == null)) {
-                        if (t.isAlive()) // precheck that t is startable
+                        // precheck that t is startable
+                        if (t.isAlive()) {
                             throw new IllegalThreadStateException();
+                        }
                         workers.add(w);
                         int s = workers.size();
-                        if (s > largestPoolSize)
+                        if (s > largestPoolSize) {
                             largestPoolSize = s;
+                        }
                         workerAdded = true;
                     }
                 } finally {
                     mainLock.unlock();
                 }
                 if (workerAdded) {
+                    // 直接启动任务
                     t.start();
                     workerStarted = true;
                 }
             }
         } finally {
-            if (! workerStarted)
+            if (! workerStarted) {
                 addWorkerFailed(w);
+            }
         }
         return workerStarted;
     }
@@ -999,6 +1026,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         mainLock.lock();
         try {
             completedTaskCount += w.completedTasks;
+            // 移除任务集合
             workers.remove(w);
         } finally {
             mainLock.unlock();
@@ -1037,8 +1065,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *         workerCount is decremented
      */
     private Runnable getTask() {
-        boolean timedOut = false; // Did the last poll() time out?
-
+        // Did the last poll() time out?
+        boolean timedOut = false;
+        // 循环取任务队列中的任务
         for (;;) {
             int c = ctl.get();
             int rs = runStateOf(c);
@@ -1056,8 +1085,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
             if ((wc > maximumPoolSize || (timed && timedOut))
                 && (wc > 1 || workQueue.isEmpty())) {
-                if (compareAndDecrementWorkerCount(c))
+                if (compareAndDecrementWorkerCount(c)) {
                     return null;
+                }
                 continue;
             }
 
@@ -1119,12 +1149,16 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      */
     final void runWorker(Worker w) {
         Thread wt = Thread.currentThread();
+        // 首先执行第一个任务
         Runnable task = w.firstTask;
         w.firstTask = null;
-        w.unlock(); // allow interrupts
+        // allow interrupts
+        w.unlock();
         boolean completedAbruptly = true;
         try {
+            // 循环从工作队列中取任务执行
             while (task != null || (task = getTask()) != null) {
+                // 基于AQS实现不可重入
                 w.lock();
                 // If pool is stopping, ensure thread is interrupted;
                 // if not, ensure thread is not interrupted.  This
@@ -1133,9 +1167,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 if ((runStateAtLeast(ctl.get(), STOP) ||
                      (Thread.interrupted() &&
                       runStateAtLeast(ctl.get(), STOP))) &&
-                    !wt.isInterrupted())
+                    !wt.isInterrupted()) {
                     wt.interrupt();
+                }
                 try {
+                    // 执行任务之前
                     beforeExecute(wt, task);
                     Throwable thrown = null;
                     try {
@@ -1147,11 +1183,13 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     } catch (Throwable x) {
                         thrown = x; throw new Error(x);
                     } finally {
+                        // 执行任务之后
                         afterExecute(task, thrown);
                     }
                 } finally {
                     task = null;
                     w.completedTasks++;
+                    // 释放锁
                     w.unlock();
                 }
             }
@@ -1272,19 +1310,26 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      * @param corePoolSize the number of threads to keep in the pool, even
      *        if they are idle, unless {@code allowCoreThreadTimeOut} is set
+     *                          核心线程数
      * @param maximumPoolSize the maximum number of threads to allow in the
      *        pool
+     *                          最大允许的运行线程数
      * @param keepAliveTime when the number of threads is greater than
      *        the core, this is the maximum time that excess idle threads
      *        will wait for new tasks before terminating.
+     *                          最大的保活时间。当超出核心线程数的空闲线程
      * @param unit the time unit for the {@code keepAliveTime} argument
+     *                          时间单位
      * @param workQueue the queue to use for holding tasks before they are
      *        executed.  This queue will hold only the {@code Runnable}
      *        tasks submitted by the {@code execute} method.
+     *                          阻塞任务队列。提交的任务将被扔到队列中
      * @param threadFactory the factory to use when the executor
      *        creates a new thread
+     *                          线程工厂
      * @param handler the handler to use when execution is blocked
      *        because the thread bounds and queue capacities are reached
+     *                          拒绝策略处理器
      * @throws IllegalArgumentException if one of the following holds:<br>
      *         {@code corePoolSize < 0}<br>
      *         {@code keepAliveTime < 0}<br>
@@ -1331,9 +1376,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *         cannot be accepted for execution
      * @throws NullPointerException if {@code command} is null
      */
+    @Override
     public void execute(Runnable command) {
-        if (command == null)
+        if (command == null) {
             throw new NullPointerException();
+        }
         /*
          * Proceed in 3 steps:
          *
@@ -1355,20 +1402,28 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
          * and so reject the task.
          */
         int c = ctl.get();
+        // 任务数 小于 核心线程数
         if (workerCountOf(c) < corePoolSize) {
-            if (addWorker(command, true))
+            // 直接创建核心线程，运行该任务
+            if (addWorker(command, true)) {
                 return;
+            }
             c = ctl.get();
         }
+        // 正在运行 且 加入队列成功
         if (isRunning(c) && workQueue.offer(command)) {
+            // 获取个数
             int recheck = ctl.get();
-            if (! isRunning(recheck) && remove(command))
+            if (! isRunning(recheck) && remove(command)) {
                 reject(command);
-            else if (workerCountOf(recheck) == 0)
+            }
+            else if (workerCountOf(recheck) == 0) {
                 addWorker(null, false);
+            }
         }
-        else if (!addWorker(command, false))
+        else if (!addWorker(command, false)) {
             reject(command);
+        }
     }
 
     /**

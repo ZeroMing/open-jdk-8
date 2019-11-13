@@ -608,7 +608,7 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Creates and enqueues node for current thread and given mode.
-     *
+     * 对当前线程创建节点且进行排队，通过给定的模式
      * @param mode Node.EXCLUSIVE for exclusive, Node.SHARED for shared
      * @return the new node
      */
@@ -684,6 +684,7 @@ public abstract class AbstractQueuedSynchronizer
      * Release action for shared mode -- signals successor and ensures
      * propagation. (Note: For exclusive mode, release just amounts
      * to calling unparkSuccessor of head if it needs signal.)
+     * 共享模式下释放锁，发信号给后继节点，确保传播。
      */
     private void doReleaseShared() {
         /*
@@ -700,8 +701,10 @@ public abstract class AbstractQueuedSynchronizer
         for (;;) {
             Node h = head;
             if (h != null && h != tail) {
+                // 头节点状态
                 int ws = h.waitStatus;
                 if (ws == Node.SIGNAL) {
+                    // 重置为0
                     if (!compareAndSetWaitStatus(h, Node.SIGNAL, 0))
                         // loop to recheck cases
                         continue;
