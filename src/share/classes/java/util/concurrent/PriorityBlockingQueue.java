@@ -59,7 +59,8 @@ import java.util.function.Consumer;
  * Comparable natural ordering} also does not permit insertion of
  * non-comparable objects (doing so results in
  * {@code ClassCastException}).
- *
+ * 无界队列。基于一定排序规则实现的阻塞操作。由于队列是无界限制的，添加操作会导致内存不足。
+ * 不允许插入空对象或者其他不可比较的对象。
  * <p>This class and its iterator implement all of the
  * <em>optional</em> methods of the {@link Collection} and {@link
  * Iterator} interfaces.  The Iterator provided in method {@link

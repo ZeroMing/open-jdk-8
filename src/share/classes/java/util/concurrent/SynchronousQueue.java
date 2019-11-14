@@ -44,13 +44,15 @@ import java.util.Spliterators;
 /**
  * A {@linkplain BlockingQueue blocking queue} in which each insert
  * operation must wait for a corresponding remove operation by another
- * thread, and vice versa.  A synchronous queue does not have any
- * internal capacity, not even a capacity of one.  You cannot
- * {@code peek} at a synchronous queue because an element is only
+ * thread, and vice versa.
+ *
+ * A synchronous queue does not have any internal capacity, not even a capacity of one.
+ * You cannot {@code peek} at a synchronous queue because an element is only
  * present when you try to remove it; you cannot insert an element
  * (using any method) unless another thread is trying to remove it;
- * you cannot iterate as there is nothing to iterate.  The
- * <em>head</em> of the queue is the element that the first queued
+ * you cannot iterate as there is nothing to iterate.
+ * 没有任何容量。
+ * The <em>head</em> of the queue is the element that the first queued
  * inserting thread is trying to add to the queue; if there is no such
  * queued thread then no element is available for removal and
  * {@code poll()} will return {@code null}.  For purposes of other
@@ -63,6 +65,7 @@ import java.util.Spliterators;
  * object running in one thread must sync up with an object running
  * in another thread in order to hand it some information, event, or
  * task.
+ * 用户线程之间的对象交换信息。转接点。
  *
  * <p>This class supports an optional fairness policy for ordering
  * waiting producer and consumer threads.  By default, this ordering
@@ -90,11 +93,12 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      * queue algorithms described in "Nonblocking Concurrent Objects
      * with Condition Synchronization", by W. N. Scherer III and
      * M. L. Scott.  18th Annual Conf. on Distributed Computing,
-     * Oct. 2004 (see also
-     * http://www.cs.rochester.edu/u/scott/synchronization/pseudocode/duals.html).
+     * Oct. 2004 (see also http://www.cs.rochester.edu/u/scott/synchronization/pseudocode/duals.html).
      * The (Lifo) stack is used for non-fair mode, and the (Fifo)
-     * queue for fair mode. The performance of the two is generally
-     * similar. Fifo usually supports higher throughput under
+     * queue for fair mode.
+     * The performance of the two is generally
+     * similar.
+     * Fifo usually supports higher throughput under
      * contention but Lifo maintains higher thread locality in common
      * applications.
      *
@@ -135,10 +139,11 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      *
      * Blocking is mainly accomplished using LockSupport park/unpark,
      * except that nodes that appear to be the next ones to become
-     * fulfilled first spin a bit (on multiprocessors only). On very
-     * busy synchronous queues, spinning can dramatically improve
+     * fulfilled first spin a bit (on multiprocessors only).
+     * On very busy synchronous queues, spinning can dramatically improve
      * throughput. And on less busy ones, the amount of spinning is
      * small enough not to be noticeable.
+     * 自旋可以显著提高吞吐量。
      *
      * Cleaning is done in different ways in queues vs stacks.  For
      * queues, we can almost always remove a node immediately in O(1)
@@ -160,10 +165,12 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      * old head pointers), but references in Queue nodes must be
      * aggressively forgotten to avoid reachability of everything any
      * node has ever referred to since arrival.
+     *
      */
 
     /**
      * Shared internal API for dual stacks and queues.
+     *
      */
     abstract static class Transferer<E> {
         /**
@@ -218,10 +225,12 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
          */
 
         /* Modes for SNodes, ORed together in node fields */
+
         /** Node represents an unfulfilled consumer */
         static final int REQUEST    = 0;
         /** Node represents an unfulfilled producer */
         static final int DATA       = 1;
+
         /** Node is fulfilling another unfulfilled DATA or REQUEST */
         static final int FULFILLING = 2;
 
@@ -625,8 +634,9 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
          * Tries to cas nt as new tail.
          */
         void advanceTail(QNode t, QNode nt) {
-            if (tail == t)
+            if (tail == t) {
                 UNSAFE.compareAndSwapObject(this, tailOffset, t, nt);
+            }
         }
 
         /**
@@ -641,6 +651,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
          * Puts or takes an item.
          */
         @SuppressWarnings("unchecked")
+        @Override
         E transfer(E e, boolean timed, long nanos) {
             /* Basic algorithm is to loop trying to take either of
              * two actions:
@@ -684,14 +695,20 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                         advanceTail(t, tn);
                         continue;
                     }
-                    if (timed && nanos <= 0)        // can't wait
+                    // 超时
+                    if (timed && nanos <= 0) {        // can't wait
                         return null;
-                    if (s == null)
+                    }
+                    if (s == null) {
                         s = new QNode(e, isData);
-                    if (!t.casNext(null, s))        // failed to link in
-                        continue;
+                    }
 
+                    if (!t.casNext(null, s)) {        // failed to link in
+                        continue;
+                    }
+                    // CAS追加
                     advanceTail(t, s);              // swing tail and wait
+                    // 等待
                     Object x = awaitFulfill(s, e, timed, nanos);
                     if (x == s) {                   // wait was cancelled
                         clean(t, s);
@@ -728,7 +745,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
 
         /**
          * Spins/blocks until node s is fulfilled.
-         *
+         * 自旋锁等待节点是满足条件的
          * @param s the waiting node
          * @param e the comparison value for checking match
          * @param timed true if timed wait
@@ -862,6 +879,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      *        access; otherwise the order is unspecified.
      */
     public SynchronousQueue(boolean fair) {
+        // 公平模式使用队列，非公平模式使用栈
         transferer = fair ? new TransferQueue<E>() : new TransferStack<E>();
     }
 
@@ -872,9 +890,13 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
      * @throws InterruptedException {@inheritDoc}
      * @throws NullPointerException {@inheritDoc}
      */
+    @Override
     public void put(E e) throws InterruptedException {
-        if (e == null) throw new NullPointerException();
+        if (e == null) {
+            throw new NullPointerException();
+        }
         if (transferer.transfer(e, false, 0) == null) {
+            // 抛出中断
             Thread.interrupted();
             throw new InterruptedException();
         }

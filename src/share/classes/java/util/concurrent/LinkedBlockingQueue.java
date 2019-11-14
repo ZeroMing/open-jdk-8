@@ -49,6 +49,7 @@ import java.util.function.Consumer;
 /**
  * An optionally-bounded {@linkplain BlockingQueue blocking queue} based on
  * linked nodes.
+ * 无界队列、基于链表实现。FIFO。
  * This queue orders elements FIFO (first-in-first-out).
  * The <em>head</em> of the queue is that element that has been on the
  * queue the longest time.

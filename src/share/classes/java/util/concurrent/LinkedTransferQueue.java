@@ -47,6 +47,7 @@ import java.util.Spliterators;
 import java.util.function.Consumer;
 
 /**
+ *
  * An unbounded {@link TransferQueue} based on linked nodes.
  * This queue orders elements FIFO (first-in-first-out) with respect
  * to any given producer.  The <em>head</em> of the queue is that
@@ -449,9 +450,13 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * ordered wrt other accesses or CASes use simple relaxed forms.
      */
     static final class Node {
+        // 是否是数据节点（也就标识了是生产者还是消费者）
         final boolean isData;   // false if this is a request node
+        // 元素的值
         volatile Object item;   // initially non-null if isData; CASed to match
+        // 下一个节点
         volatile Node next;
+        // 持有元素的线程
         volatile Thread waiter; // null until waiting
 
         // CAS methods for fields
@@ -476,6 +481,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
         /**
          * Links node to itself to avoid garbage retention.  Called
          * only after CASing head field, so uses relaxed write.
+         * 关联节点到自身避免垃圾滞留
          */
         final void forgetNext() {
             UNSAFE.putObject(this, nextOffset, this);
@@ -501,6 +507,8 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
          */
         final boolean isMatched() {
             Object x = item;
+            // 如果是provider节点，那么isData 为true,x等于null 或者当前对象等于this
+            // 如果是consumer节点，那么isData 为false。x 不等于空，或者当前对象等于this
             return (x == this) || ((x == null) == isData);
         }
 
@@ -583,10 +591,14 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
     /*
      * Possible values for "how" argument in xfer method.
      */
-    private static final int NOW   = 0; // for untimed poll, tryTransfer
-    private static final int ASYNC = 1; // for offer, put, add
-    private static final int SYNC  = 2; // for transfer, take
-    private static final int TIMED = 3; // for timed poll, tryTransfer
+    // for untimed poll, tryTransfer
+    private static final int NOW   = 0;
+    // for offer, put, add
+    private static final int ASYNC = 1;
+    // for transfer, take
+    private static final int SYNC  = 2;
+    // for timed poll, tryTransfer
+    private static final int TIMED = 3;
 
     @SuppressWarnings("unchecked")
     static <E> E cast(Object item) {
@@ -595,56 +607,79 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
     }
 
     /**
+     * 神奇的xfer()
+     * 神奇的xfer()
+     * 神奇的xfer()
      * Implements all queuing methods. See above for explanation.
-     *
-     * @param e the item or null for take
-     * @param haveData true if this is a put, else a take
-     * @param how NOW, ASYNC, SYNC, or TIMED
+     * 所有的方法的实现
+     * @param e the item or null for take 元素
+     * @param haveData true if this is a put, else a take 是否是数据节点
+     * @param how NOW, ASYNC, SYNC, or TIMED    放取元素的方式
      * @param nanos timeout in nanosecs, used only if mode is TIMED
      * @return an item if matched, else e
      * @throws NullPointerException if haveData mode but e is null
      */
     private E xfer(E e, boolean haveData, int how, long nanos) {
-        if (haveData && (e == null))
+        if (haveData && (e == null)) {
             throw new NullPointerException();
+        }
         Node s = null;                        // the node to append, if needed
-
         retry:
         for (;;) {                            // restart on append race
-
+            // 从头节点开始查找
             for (Node h = head, p = h; p != null;) { // find & match first node
+                // p节点的模式
                 boolean isData = p.isData;
+                // p节点的值
                 Object item = p.item;
+                // p没有被匹配到
                 if (item != p && (item != null) == isData) { // unmatched
-                    if (isData == haveData)   // can't match
+                    // 如果两者模式一样，则不能匹配，跳出循环后尝试入队
+                    if (isData == haveData) {   // can't match
                         break;
+                    }
+                    // 如果两者模式不一样，则尝试匹配
+                    // 把p的值设置为e（如果是取元素则e是null，如果是放元素则e是元素值）
                     if (p.casItem(item, e)) { // match
+
                         for (Node q = p; q != h;) {
                             Node n = q.next;  // update by 2 unless singleton
+                            // 更新head为匹配节点的next节点
                             if (head == h && casHead(h, n == null ? q : n)) {
+                                // 旧head节点指向自身等待回收
                                 h.forgetNext();
                                 break;
                             }                 // advance and retry
-                            if ((h = head)   == null ||
-                                (q = h.next) == null || !q.isMatched())
+                            // 如果新的头节点为空，或者其next为空，或者其next未匹配，就重试
+                            if ((h = head)   == null || (q = h.next) == null || !q.isMatched()) {
                                 break;        // unless slack < 2
+                            }
                         }
+                        // 唤醒在节点上等待的线程
                         LockSupport.unpark(p.waiter);
                         return LinkedTransferQueue.<E>cast(item);
                     }
                 }
+                // 匹配失败，继续向后查找节点
                 Node n = p.next;
                 p = (p != n) ? n : (h = head); // Use head if p offlist
             }
 
+            // 未找到匹配节点，把当前节点加入到队列尾
             if (how != NOW) {                 // No matches available
-                if (s == null)
+                if (s == null) {
                     s = new Node(e, haveData);
+                }
+                // 将新节点s添加到队列尾并返回s的前继节点
                 Node pred = tryAppend(s, haveData);
-                if (pred == null)
+                // 与其他不同模式线程竞争失败重新循环 lost race vs opposite mode
+                if (pred == null) {
                     continue retry;           // lost race vs opposite mode
-                if (how != ASYNC)
+                }
+                //同步操作，等待匹配
+                if (how != ASYNC) {
                     return awaitMatch(s, pred, e, (how == TIMED), nanos);
+                }
             }
             return e; // not waiting
         }
@@ -768,6 +803,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
     }
 
     /**
+     * 返回第一个没有匹配到的节点
      * Returns the first unmatched node of the given mode, or null if
      * none.  Used by methods isEmpty, hasWaitingConsumer.
      */
@@ -804,14 +840,17 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * null if none.  Used by peek.
      */
     private E firstDataItem() {
+        // 遍历查找第1个节点对象
         for (Node p = head; p != null; p = succ(p)) {
             Object item = p.item;
             if (p.isData) {
-                if (item != null && item != p)
+                if (item != null && item != p) {
                     return LinkedTransferQueue.<E>cast(item);
+                }
             }
-            else if (item == null)
+            else if (item == null) {
                 return null;
+            }
         }
         return null;
     }
@@ -1166,6 +1205,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @throws NullPointerException if the specified element is null
      */
+    @Override
     public void put(E e) {
         xfer(e, true, ASYNC, 0);
     }
@@ -1180,6 +1220,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *  BlockingQueue.offer})
      * @throws NullPointerException if the specified element is null
      */
+    @Override
     public boolean offer(E e, long timeout, TimeUnit unit) {
         xfer(e, true, ASYNC, 0);
         return true;
@@ -1192,6 +1233,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * @return {@code true} (as specified by {@link Queue#offer})
      * @throws NullPointerException if the specified element is null
      */
+    @Override
     public boolean offer(E e) {
         xfer(e, true, ASYNC, 0);
         return true;
@@ -1205,6 +1247,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * @return {@code true} (as specified by {@link Collection#add})
      * @throws NullPointerException if the specified element is null
      */
+    @Override
     public boolean add(E e) {
         xfer(e, true, ASYNC, 0);
         return true;
@@ -1212,7 +1255,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
 
     /**
      * Transfers the element to a waiting consumer immediately, if possible.
-     *
+     * 立即传输一个元素给等待的消费者
      * <p>More precisely, transfers the specified element immediately
      * if there exists a consumer already waiting to receive it (in
      * {@link #take} or timed {@link #poll(long,TimeUnit) poll}),
@@ -1220,6 +1263,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @throws NullPointerException if the specified element is null
      */
+    @Override
     public boolean tryTransfer(E e) {
         return xfer(e, true, NOW, 0) == null;
     }
@@ -1235,9 +1279,11 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @throws NullPointerException if the specified element is null
      */
+    @Override
     public void transfer(E e) throws InterruptedException {
         if (xfer(e, true, SYNC, 0) != null) {
-            Thread.interrupted(); // failure possible only due to interrupt
+            // failure possible only due to interrupt
+            Thread.interrupted();
             throw new InterruptedException();
         }
     }
@@ -1256,38 +1302,48 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @throws NullPointerException if the specified element is null
      */
+    @Override
     public boolean tryTransfer(E e, long timeout, TimeUnit unit)
         throws InterruptedException {
-        if (xfer(e, true, TIMED, unit.toNanos(timeout)) == null)
+        if (xfer(e, true, TIMED, unit.toNanos(timeout)) == null) {
             return true;
-        if (!Thread.interrupted())
+        }
+        if (!Thread.interrupted()) {
             return false;
+        }
         throw new InterruptedException();
     }
 
+    @Override
     public E take() throws InterruptedException {
         E e = xfer(null, false, SYNC, 0);
-        if (e != null)
+        if (e != null) {
             return e;
+        }
         Thread.interrupted();
         throw new InterruptedException();
     }
 
+    @Override
     public E poll(long timeout, TimeUnit unit) throws InterruptedException {
         E e = xfer(null, false, TIMED, unit.toNanos(timeout));
-        if (e != null || !Thread.interrupted())
+        if (e != null || !Thread.interrupted()) {
             return e;
+        }
         throw new InterruptedException();
     }
 
+    @Override
     public E poll() {
         return xfer(null, false, NOW, 0);
     }
 
     /**
+     * 将元素排到集合中
      * @throws NullPointerException     {@inheritDoc}
      * @throws IllegalArgumentException {@inheritDoc}
      */
+    @Override
     public int drainTo(Collection<? super E> c) {
         if (c == null)
             throw new NullPointerException();
@@ -1305,6 +1361,7 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      * @throws NullPointerException     {@inheritDoc}
      * @throws IllegalArgumentException {@inheritDoc}
      */
+    @Override
     public int drainTo(Collection<? super E> c, int maxElements) {
         if (c == null)
             throw new NullPointerException();
@@ -1327,10 +1384,12 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @return an iterator over the elements in this queue in proper sequence
      */
+    @Override
     public Iterator<E> iterator() {
         return new Itr();
     }
 
+    @Override
     public E peek() {
         return firstDataItem();
     }
@@ -1340,14 +1399,17 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @return {@code true} if this queue contains no elements
      */
+    @Override
     public boolean isEmpty() {
         for (Node p = head; p != null; p = succ(p)) {
-            if (!p.isMatched())
+            if (!p.isMatched()) {
                 return !p.isData;
+            }
         }
         return true;
     }
 
+    @Override
     public boolean hasWaitingConsumer() {
         return firstOfMode(false) != null;
     }
@@ -1364,10 +1426,12 @@ public class LinkedTransferQueue<E> extends AbstractQueue<E>
      *
      * @return the number of elements in this queue
      */
+    @Override
     public int size() {
         return countOfMode(true);
     }
 
+    @Override
     public int getWaitingConsumerCount() {
         return countOfMode(false);
     }
