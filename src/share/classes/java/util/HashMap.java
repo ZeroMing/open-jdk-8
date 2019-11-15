@@ -344,17 +344,22 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     static Class<?> comparableClassFor(Object x) {
         if (x instanceof Comparable) {
-            Class<?> c; Type[] ts, as; Type t; ParameterizedType p;
-            if ((c = x.getClass()) == String.class) // bypass checks
+
+            Class<?> c;
+            Type[] ts, as;
+            Type t;
+            ParameterizedType p;
+            if ((c = x.getClass()) == String.class) { // bypass checks
                 return c;
+            }
             if ((ts = c.getGenericInterfaces()) != null) {
                 for (int i = 0; i < ts.length; ++i) {
                     if (((t = ts[i]) instanceof ParameterizedType) &&
-                        ((p = (ParameterizedType)t).getRawType() ==
-                         Comparable.class) &&
+                        ((p = (ParameterizedType)t).getRawType() == Comparable.class) &&
                         (as = p.getActualTypeArguments()) != null &&
-                        as.length == 1 && as[0] == c) // type arg is c
+                        as.length == 1 && as[0] == c) {// type arg is c
                         return c;
+                    }
                 }
             }
         }
@@ -364,6 +369,13 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     /**
      * Returns k.compareTo(x) if x matches kc (k's screened comparable
      * class), else 0.
+     */
+    /**
+     * 比较k与x的大小
+     * @param kc key的class信息
+     * @param k  key的值
+     * @param x  已经存在节点的值
+     * @return
      */
     @SuppressWarnings({"rawtypes","unchecked"}) // for cast to Comparable
     static int compareComparables(Class<?> kc, Object k, Object x) {
@@ -642,7 +654,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                 ((k = p.key) == key || (key != null && key.equals(k)))) {
                 e = p;
             }
-            // 如果是树化节点
+            // 如果已经存在的节点是树化节点
             else if (p instanceof TreeNode) {
                 e = ((TreeNode<K, V>) p).putTreeVal(this, tab, hash, key, value);
             }
@@ -834,6 +846,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      *         (A <tt>null</tt> return can also indicate that the map
      *         previously associated <tt>null</tt> with <tt>key</tt>.)
      */
+    @Override
     public V remove(Object key) {
         Node<K,V> e;
         return (e = removeNode(hash(key), key, null, false, true)) == null ?
@@ -857,11 +870,16 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             (p = tab[index = (n - 1) & hash]) != null) {
             Node<K,V> node = null, e; K k; V v;
             if (p.hash == hash &&
-                ((k = p.key) == key || (key != null && key.equals(k))))
+                ((k = p.key) == key || (key != null && key.equals(k)))) {
                 node = p;
+            }
+            //
             else if ((e = p.next) != null) {
-                if (p instanceof TreeNode)
-                    node = ((TreeNode<K,V>)p).getTreeNode(hash, key);
+                if (p instanceof TreeNode) {
+                    node = ((TreeNode<K, V>) p).getTreeNode(hash, key);
+
+                }
+                //
                 else {
                     do {
                         if (e.hash == hash &&
@@ -876,12 +894,16 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             }
             if (node != null && (!matchValue || (v = node.value) == value ||
                                  (value != null && value.equals(v)))) {
-                if (node instanceof TreeNode)
-                    ((TreeNode<K,V>)node).removeTreeNode(this, tab, movable);
-                else if (node == p)
+                if (node instanceof TreeNode) {
+                    // 删除节点
+                    ((TreeNode<K, V>) node).removeTreeNode(this, tab, movable);
+                }
+                else if (node == p) {
                     tab[index] = node.next;
-                else
+                }
+                else {
                     p.next = node.next;
+                }
                 ++modCount;
                 --size;
                 afterNodeRemoval(node);
@@ -1863,12 +1885,15 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                     Node<K,V> rn;
                     tab[index] = root;
                     TreeNode<K,V> rp = root.prev;
-                    if ((rn = root.next) != null)
-                        ((TreeNode<K,V>)rn).prev = rp;
-                    if (rp != null)
+                    if ((rn = root.next) != null) {
+                        ((TreeNode<K, V>) rn).prev = rp;
+                    }
+                    if (rp != null) {
                         rp.next = rn;
-                    if (first != null)
+                    }
+                    if (first != null) {
                         first.prev = root;
+                    }
                     root.next = first;
                     root.prev = null;
                 }
@@ -1880,30 +1905,57 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          * Finds the node starting at root p with the given hash and key.
          * The kc argument caches comparableClassFor(key) upon first use
          * comparing keys.
+         *
+         */
+        /**
+         * 查询
+         * @param h  新节点的hash值
+         * @param k  key的值
+         * @param kc key的类信息
+         * @return
          */
         final TreeNode<K,V> find(int h, Object k, Class<?> kc) {
             TreeNode<K,V> p = this;
             do {
                 int ph, dir; K pk;
-                TreeNode<K,V> pl = p.left, pr = p.right, q;
-                if ((ph = p.hash) > h)
+                // 左孩子
+                TreeNode<K,V> pl = p.left,
+                        // 右孩子
+                        pr = p.right, q;
+                // hash值小于当前节点，继续与左孩子比较
+                if ((ph = p.hash) > h) {
                     p = pl;
-                else if (ph < h)
+                }
+                // hash值大，继续与右孩子比较
+                else if (ph < h) {
                     p = pr;
-                else if ((pk = p.key) == k || (k != null && k.equals(pk)))
+                }
+                // ----------------- 下面比较的 hash值是一样的，比较key的值的大小
+                // hash值一样 且 key值 一样
+                else if ((pk = p.key) == k || (k != null && k.equals(pk))) {
                     return p;
-                else if (pl == null)
+                }
+                // 如果左子树为空，遍历右子树
+                else if (pl == null) {
                     p = pr;
-                else if (pr == null)
+                }
+                // 如果右子树为空，遍历左子树
+                else if (pr == null) {
                     p = pl;
-                else if ((kc != null ||
-                          (kc = comparableClassFor(k)) != null) &&
-                         (dir = compareComparables(kc, k, pk)) != 0)
+                }
+                // key的类不为空，且属于Comparable接口的子类
+                else if ((kc != null || (kc = comparableClassFor(k)) != null) &&
+                         (dir = compareComparables(kc, k, pk)) != 0) {
                     p = (dir < 0) ? pl : pr;
-                else if ((q = pr.find(h, k, kc)) != null)
+                }
+                // 递归遍历
+                else if ((q = pr.find(h, k, kc)) != null) {
                     return q;
-                else
+                }
+                else {
+                    // TODO 是否可以为右子树 ？？？
                     p = pl;
+                }
             } while (p != null);
             return null;
         }
@@ -1924,11 +1976,14 @@ public class HashMap<K,V> extends AbstractMap<K,V>
          */
         static int tieBreakOrder(Object a, Object b) {
             int d;
+            // 当a为空或者b为空或者a的类型和b的类型一致
             if (a == null || b == null ||
                 (d = a.getClass().getName().
-                 compareTo(b.getClass().getName())) == 0)
+                 compareTo(b.getClass().getName())) == 0) {
+                // 强制返回hash的大小结果
                 d = (System.identityHashCode(a) <= System.identityHashCode(b) ?
-                     -1 : 1);
+                        -1 : 1);
+            }
             return d;
         }
 
@@ -2004,42 +2059,65 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                                        int h, K k, V v) {
             Class<?> kc = null;
             boolean searched = false;
+            // 获取根节点
             TreeNode<K,V> root = (parent != null) ? root() : this;
             for (TreeNode<K,V> p = root;;) {
+                // 方向dir
                 int dir, ph; K pk;
-                if ((ph = p.hash) > h)
+                // 已经存在节点的hash > 新节点的hash
+                if ((ph = p.hash) > h) {
                     dir = -1;
-                else if (ph < h)
+                }
+                else if (ph < h) {
                     dir = 1;
-                else if ((pk = p.key) == k || (k != null && k.equals(pk)))
+                }
+                // hash值一样且 key值一样，直接返回当前节点
+                else if ((pk = p.key) == k || (k != null && k.equals(pk))) {
                     return p;
-                else if ((kc == null &&
-                          (kc = comparableClassFor(k)) == null) ||
+                }
+                // key所属的类为 null，或者 key的大小一样
+                else if ((kc == null && (kc = comparableClassFor(k)) == null) ||
                          (dir = compareComparables(kc, k, pk)) == 0) {
+                    // 如果没有找到
                     if (!searched) {
                         TreeNode<K,V> q, ch;
                         searched = true;
+                        // 先后从左右子树递归查找节点
                         if (((ch = p.left) != null &&
                              (q = ch.find(h, k, kc)) != null) ||
                             ((ch = p.right) != null &&
-                             (q = ch.find(h, k, kc)) != null))
+                             (q = ch.find(h, k, kc)) != null)) {
                             return q;
+                        }
                     }
+                    // 返回大小
                     dir = tieBreakOrder(k, pk);
                 }
 
                 TreeNode<K,V> xp = p;
+                // 根据hash的值大小 取左子节点或右子节点
                 if ((p = (dir <= 0) ? p.left : p.right) == null) {
+                    // 下一个新节点
                     Node<K,V> xpn = xp.next;
+                    // 创建新节点
                     TreeNode<K,V> x = map.newTreeNode(h, k, v, xpn);
-                    if (dir <= 0)
+                    if (dir <= 0) {
+                        // 置于当前节点的左子节点
                         xp.left = x;
-                    else
+                    }
+                    else {
+                        // 置于当前节点的右子节点
                         xp.right = x;
+                    }
+                    // 下一个节点。因为TreeNode今后可能退化成链表，因此需要在这里维护链表的next属性
                     xp.next = x;
+                    // 设置新节点的父节点和前驱节点。完成节点插入操作
                     x.parent = x.prev = xp;
-                    if (xpn != null)
-                        ((TreeNode<K,V>)xpn).prev = x;
+                    if (xpn != null) {
+                        // 设置树节点的前驱节点
+                        ((TreeNode<K, V>) xpn).prev = x;
+                    }
+                    // 平衡树
                     moveRootToFront(tab, balanceInsertion(root, x));
                     return null;
                 }
@@ -2059,31 +2137,47 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         final void removeTreeNode(HashMap<K,V> map, Node<K,V>[] tab,
                                   boolean movable) {
             int n;
-            if (tab == null || (n = tab.length) == 0)
+            if (tab == null || (n = tab.length) == 0) {
                 return;
+            }
+            // 获取hash的数组下标记
             int index = (n - 1) & hash;
+            // 第一个节点
             TreeNode<K,V> first = (TreeNode<K,V>)tab[index], root = first, rl;
+            // 后继节点，前驱节点
             TreeNode<K,V> succ = (TreeNode<K,V>)next, pred = prev;
-            if (pred == null)
+            if (pred == null) {
                 tab[index] = first = succ;
-            else
+            }
+            else {
                 pred.next = succ;
-            if (succ != null)
+            }
+            // 后继不为空 设置后继的前驱为pred
+            if (succ != null) {
                 succ.prev = pred;
-            if (first == null)
+            }
+            // 首节点为空
+            if (first == null) {
                 return;
-            if (root.parent != null)
+            }
+
+            if (root.parent != null) {
                 root = root.root();
+            }
             if (root == null || root.right == null ||
                 (rl = root.left) == null || rl.left == null) {
+                // 链化
                 tab[index] = first.untreeify(map);  // too small
                 return;
             }
+
             TreeNode<K,V> p = this, pl = left, pr = right, replacement;
             if (pl != null && pr != null) {
                 TreeNode<K,V> s = pr, sl;
-                while ((sl = s.left) != null) // find successor
+                // 查找后继节点
+                while ((sl = s.left) != null) { // find successor
                     s = sl;
+                }
                 boolean c = s.red; s.red = p.red; p.red = c; // swap colors
                 TreeNode<K,V> sr = s.right;
                 TreeNode<K,V> pp = p.parent;
@@ -2094,61 +2188,82 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                 else {
                     TreeNode<K,V> sp = s.parent;
                     if ((p.parent = sp) != null) {
-                        if (s == sp.left)
+                        if (s == sp.left) {
                             sp.left = p;
-                        else
+                        }
+                        else {
                             sp.right = p;
-                    }
-                    if ((s.right = pr) != null)
+
+                        }                    }
+                    if ((s.right = pr) != null) {
                         pr.parent = s;
+                    }
                 }
                 p.left = null;
-                if ((p.right = sr) != null)
+                if ((p.right = sr) != null) {
                     sr.parent = p;
-                if ((s.left = pl) != null)
+                }
+                if ((s.left = pl) != null) {
                     pl.parent = s;
-                if ((s.parent = pp) == null)
+                }
+                if ((s.parent = pp) == null) {
                     root = s;
-                else if (p == pp.left)
+                }
+                else if (p == pp.left) {
                     pp.left = s;
-                else
+                }
+                else {
                     pp.right = s;
-                if (sr != null)
+                }
+                if (sr != null) {
                     replacement = sr;
-                else
+                }
+                else {
                     replacement = p;
+                }
             }
-            else if (pl != null)
+            else if (pl != null) {
                 replacement = pl;
-            else if (pr != null)
+            }
+            else if (pr != null) {
                 replacement = pr;
-            else
+            }
+            else {
                 replacement = p;
+            }
             if (replacement != p) {
                 TreeNode<K,V> pp = replacement.parent = p.parent;
-                if (pp == null)
+                if (pp == null) {
                     root = replacement;
-                else if (p == pp.left)
+                }
+                else if (p == pp.left) {
                     pp.left = replacement;
-                else
+                }
+                else {
                     pp.right = replacement;
+                }
                 p.left = p.right = p.parent = null;
             }
 
+            // 若待删除的节点p时红色的，则树平衡未被破坏，无需进行调整。
+            // 否则删除节点后需要进行调整
             TreeNode<K,V> r = p.red ? root : balanceDeletion(root, replacement);
 
             if (replacement == p) {  // detach
                 TreeNode<K,V> pp = p.parent;
                 p.parent = null;
                 if (pp != null) {
-                    if (p == pp.left)
+                    if (p == pp.left) {
                         pp.left = null;
-                    else if (p == pp.right)
+                    }
+                    else if (p == pp.right) {
                         pp.right = null;
+                    }
                 }
             }
-            if (movable)
+            if (movable) {
                 moveRootToFront(tab, r);
+            }
         }
 
         /**
@@ -2233,16 +2348,29 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 
         static <K,V> TreeNode<K,V> rotateLeft(TreeNode<K,V> root,
                                               TreeNode<K,V> p) {
+            /**
+             * r : 右子节点
+             * pp : 父节点
+             */
             TreeNode<K,V> r, pp, rl;
             if (p != null && (r = p.right) != null) {
-                if ((rl = p.right = r.left) != null)
+                // 右孩子的左孩子 赋值给 当前节点右孩子
+                if ((rl = p.right = r.left) != null) {
+                    // 右孩子的左孩子 与当前节点关联
                     rl.parent = p;
-                if ((pp = r.parent = p.parent) == null)
+                }
+                // 当前节点为根节点
+                if ((pp = r.parent = p.parent) == null) {
+                    // 将右孩子设置为黑色，根节点
                     (root = r).red = false;
-                else if (pp.left == p)
+                }
+                // 当前节点不为根节点 且
+                else if (pp.left == p) {
                     pp.left = r;
-                else
+                }
+                else {
                     pp.right = r;
+                }
                 r.left = p;
                 p.parent = r;
             }
@@ -2267,25 +2395,53 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             return root;
         }
 
+        /**
+         * 插入节点自平衡
+         * @param root 根节点
+         * @param x 新节点
+         * @param <K>
+         * @param <V>
+         * @return
+         */
         static <K,V> TreeNode<K,V> balanceInsertion(TreeNode<K,V> root,
                                                     TreeNode<K,V> x) {
+            // 新插入的节点为红色
             x.red = true;
+            /**
+             * xp : 父节点
+             * xpp : 爷爷节点
+             * xppl : 左叔叔节点
+             * xppr : 右叔叔节点
+             */
             for (TreeNode<K,V> xp, xpp, xppl, xppr;;) {
+                // 如果父节点为空
                 if ((xp = x.parent) == null) {
+                    // 黑色，根节点的颜色为黑色
                     x.red = false;
                     return x;
                 }
-                else if (!xp.red || (xpp = xp.parent) == null)
+                // 父节点颜色为黑色 或者 爷爷节点不存在
+                else if (!xp.red || (xpp = xp.parent) == null) {
                     return root;
+                }
+                // 父节点 等于 爷爷节点的左孩子
                 if (xp == (xppl = xpp.left)) {
+                    // 右叔叔节点不为空，且右叔叔节点为红色.颜色反转变黑色
                     if ((xppr = xpp.right) != null && xppr.red) {
+                        // 右叔父节点 变黑色
                         xppr.red = false;
+                        // 父节点为 黑色
                         xp.red = false;
+                        // 爷爷节点为红色
                         xpp.red = true;
+                        // 跨越到爷爷节点继续操作...
                         x = xpp;
                     }
+                    // 右叔叔节点不存在，或者右叔叔节点为黑色
                     else {
+                        // 新节点为右子节点
                         if (x == xp.right) {
+                            // 左旋转
                             root = rotateLeft(root, x = xp);
                             xpp = (xp = x.parent) == null ? null : xp.parent;
                         }
@@ -2293,25 +2449,34 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                             xp.red = false;
                             if (xpp != null) {
                                 xpp.red = true;
+                                // 右旋转
                                 root = rotateRight(root, xpp);
                             }
                         }
                     }
                 }
+                // 当前节点的父节点是爷爷的右子节点（与上面if分支对称）
                 else {
+                    // 左叔叔节点不为空，且节点为红色
                     if (xppl != null && xppl.red) {
                         xppl.red = false;
                         xp.red = false;
                         xpp.red = true;
                         x = xpp;
                     }
+                    // 左叔父节点为空 或者左叔父节点为黑色
                     else {
+                        // 新节点为父节点的左孩子
                         if (x == xp.left) {
                             root = rotateRight(root, x = xp);
                             xpp = (xp = x.parent) == null ? null : xp.parent;
                         }
+
+                        // 父节点不为空
                         if (xp != null) {
+                            // 父节点必须为黑色
                             xp.red = false;
+                            // 爷爷节点
                             if (xpp != null) {
                                 xpp.red = true;
                                 root = rotateLeft(root, xpp);
@@ -2322,29 +2487,56 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             }
         }
 
+        /**
+         * 删除自平衡
+         * @param root
+         * @param x
+         * @param <K>
+         * @param <V>
+         * @return
+         */
         static <K,V> TreeNode<K,V> balanceDeletion(TreeNode<K,V> root,
                                                    TreeNode<K,V> x) {
+            /**
+             * xp:  父节点
+             * xpl: 左孩子
+             * xpr: 右孩子
+             */
             for (TreeNode<K,V> xp, xpl, xpr;;)  {
-                if (x == null || x == root)
+                // 被替代节点为root
+                if (x == null || x == root) {
                     return root;
+                }
                 else if ((xp = x.parent) == null) {
+                    // 根节点颜色为黑色
                     x.red = false;
                     return x;
                 }
+                // 如果被代替的节点为红色
                 else if (x.red) {
+                    // 改为黑色
                     x.red = false;
                     return root;
                 }
+                // 左孩子替换该节点
                 else if ((xpl = xp.left) == x) {
+                    // 右孩子不为空 且右孩子颜色为红色
                     if ((xpr = xp.right) != null && xpr.red) {
+                        // 颜色互换，以父节点进行左旋
                         xpr.red = false;
                         xp.red = true;
+                        // 左旋
                         root = rotateLeft(root, xp);
                         xpr = (xp = x.parent) == null ? null : xp.right;
                     }
-                    if (xpr == null)
+                    if (xpr == null) {
                         x = xp;
+                    }
                     else {
+                        /**
+                         * sl：兄弟节点的左孩子
+                         * sr：兄弟节点的右孩子
+                         */
                         TreeNode<K,V> sl = xpr.left, sr = xpr.right;
                         if ((sr == null || !sr.red) &&
                             (sl == null || !sl.red)) {
@@ -2352,19 +2544,24 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                             x = xp;
                         }
                         else {
+                            // sr等于黑色
                             if (sr == null || !sr.red) {
-                                if (sl != null)
+                                if (sl != null) {
                                     sl.red = false;
+                                }
                                 xpr.red = true;
                                 root = rotateRight(root, xpr);
                                 xpr = (xp = x.parent) == null ?
                                     null : xp.right;
                             }
+
                             if (xpr != null) {
                                 xpr.red = (xp == null) ? false : xp.red;
-                                if ((sr = xpr.right) != null)
+                                if ((sr = xpr.right) != null) {
                                     sr.red = false;
+                                }
                             }
+                            //
                             if (xp != null) {
                                 xp.red = false;
                                 root = rotateLeft(root, xp);
@@ -2373,7 +2570,8 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                         }
                     }
                 }
-                else { // symmetric
+                // symmetric
+                else {
                     if (xpl != null && xpl.red) {
                         xpl.red = false;
                         xp.red = true;
@@ -2416,6 +2614,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
 
         /**
          * Recursive invariant check
+         *
          */
         static <K,V> boolean checkInvariants(TreeNode<K,V> t) {
             TreeNode<K,V> tp = t.parent, tl = t.left, tr = t.right,

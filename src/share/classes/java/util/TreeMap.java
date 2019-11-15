@@ -532,6 +532,7 @@ public class TreeMap<K,V>
      *         and this map uses natural ordering, or its comparator
      *         does not permit null keys
      */
+    @Override
     public V put(K key, V value) {
         Entry<K,V> t = root;
         if (t == null) {
@@ -2254,23 +2255,37 @@ public class TreeMap<K,V>
         x.color = RED;
 
         while (x != null && x != root && x.parent.color == RED) {
+            // 父节点是爷爷的左孩子
             if (parentOf(x) == leftOf(parentOf(parentOf(x)))) {
+                // 右叔父节点
                 Entry<K,V> y = rightOf(parentOf(parentOf(x)));
+                // 右叔父节点为红色
                 if (colorOf(y) == RED) {
+                    // 父节点为黑色
                     setColor(parentOf(x), BLACK);
+                    // 右叔父节点为黑色
                     setColor(y, BLACK);
+                    // 爷爷节点为红色
                     setColor(parentOf(parentOf(x)), RED);
+                    // 跳到爷爷节点继续操作
                     x = parentOf(parentOf(x));
                 } else {
+                    // 如果新节点为父节点的右孩子
                     if (x == rightOf(parentOf(x))) {
                         x = parentOf(x);
+                        // 以父节点进行左旋
                         rotateLeft(x);
                     }
+                    // 父节点为黑色
                     setColor(parentOf(x), BLACK);
+                    // 爷爷节点为红色
                     setColor(parentOf(parentOf(x)), RED);
+                    // 以爷爷节点为轴进行右旋
                     rotateRight(parentOf(parentOf(x)));
                 }
-            } else {
+            }
+            // 父节点是爷爷节点的右孩子
+            else {
                 Entry<K,V> y = leftOf(parentOf(parentOf(x)));
                 if (colorOf(y) == RED) {
                     setColor(parentOf(x), BLACK);
