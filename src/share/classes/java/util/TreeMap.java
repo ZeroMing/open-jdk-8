@@ -2143,15 +2143,21 @@ public class TreeMap<K,V>
      * Returns the successor of the specified Entry, or null if no such.
      */
     static <K,V> TreeMap.Entry<K,V> successor(Entry<K,V> t) {
-        if (t == null)
+        if (t == null) {
             return null;
+        }
+        // 如果右子树不为空，查找右子树的最左节点
         else if (t.right != null) {
             Entry<K,V> p = t.right;
-            while (p.left != null)
+            while (p.left != null) {
                 p = p.left;
+            }
             return p;
-        } else {
+        }
+        //
+        else {
             Entry<K,V> p = t.parent;
+            // 当前节点
             Entry<K,V> ch = t;
             while (p != null && ch == p.right) {
                 ch = p;
@@ -2217,17 +2223,28 @@ public class TreeMap<K,V>
     /** From CLR */
     private void rotateLeft(Entry<K,V> p) {
         if (p != null) {
+            // 右节点
             Entry<K,V> r = p.right;
+            // 右节点 = 左侄子
             p.right = r.left;
-            if (r.left != null)
+            // 左侄子的父节点 = p
+            if (r.left != null) {
                 r.left.parent = p;
+            }
+            // 右节点的父节点 = 当前节点的父节点。上位。
             r.parent = p.parent;
-            if (p.parent == null)
+            // 父节点为空，那么就是根节点
+            if (p.parent == null) {
                 root = r;
-            else if (p.parent.left == p)
+            }
+            // 如果当前节点是左孩子，那么设置新的左孩子
+            else if (p.parent.left == p) {
                 p.parent.left = r;
-            else
+            }
+            else {
                 p.parent.right = r;
+            }
+            // 退位，退成左孩子
             r.left = p;
             p.parent = r;
         }
@@ -2236,15 +2253,25 @@ public class TreeMap<K,V>
     /** From CLR */
     private void rotateRight(Entry<K,V> p) {
         if (p != null) {
+            // 左孩子
             Entry<K,V> l = p.left;
+            // 左孩子 = 右侄子
             p.left = l.right;
-            if (l.right != null) l.right.parent = p;
+            if (l.right != null) {
+                l.right.parent = p;
+            }
+            // 上位
             l.parent = p.parent;
-            if (p.parent == null)
+            if (p.parent == null) {
                 root = l;
-            else if (p.parent.right == p)
+            }
+            else if (p.parent.right == p) {
                 p.parent.right = l;
-            else p.parent.left = l;
+            }
+            else {
+                p.parent.left = l;
+            }
+            // 退位，退成右孩子
             l.right = p;
             p.parent = l;
         }
@@ -2252,31 +2279,35 @@ public class TreeMap<K,V>
 
     /** From CLR */
     private void fixAfterInsertion(Entry<K,V> x) {
+        // 新插入的节点默认为红色
         x.color = RED;
-
+        // 当前循环节点不是根节点，且当前循环节点的父节点是红色
         while (x != null && x != root && x.parent.color == RED) {
-            // 父节点是爷爷的左孩子
+            // 父节点是祖父节点的左节点
             if (parentOf(x) == leftOf(parentOf(parentOf(x)))) {
                 // 右叔父节点
                 Entry<K,V> y = rightOf(parentOf(parentOf(x)));
-                // 右叔父节点为红色
+                // （Case1）父节点为红色(x.parent.color == RED)，且右叔父节点为红色
                 if (colorOf(y) == RED) {
-                    // 父节点为黑色
+                    // 父节点变为黑色
                     setColor(parentOf(x), BLACK);
-                    // 右叔父节点为黑色
+                    // 右叔父节变点为黑色
                     setColor(y, BLACK);
-                    // 爷爷节点为红色
+                    // 爷爷节点变为红色
                     setColor(parentOf(parentOf(x)), RED);
-                    // 跳到爷爷节点继续操作
+                    // 跳到爷爷节点继续循环下一轮
                     x = parentOf(parentOf(x));
-                } else {
-                    // 如果新节点为父节点的右孩子
+                }
+                // （Case2）父节点为红色，且右叔父节点为黑色
+                else {
+                    // （Case2.1）父节点为祖父的左孩子，且新节点为父节点的右孩子（LR）.LR处理完之后，会变成LL的情况。所以LR放在前面处理。
                     if (x == rightOf(parentOf(x))) {
                         x = parentOf(x);
                         // 以父节点进行左旋
                         rotateLeft(x);
                     }
-                    // 父节点为黑色
+                    // （Case2.2）父节点为祖父的左孩子，且新节点为父节点的左孩子（LL）
+                    // 设置父节点为黑色
                     setColor(parentOf(x), BLACK);
                     // 爷爷节点为红色
                     setColor(parentOf(parentOf(x)), RED);
@@ -2284,21 +2315,35 @@ public class TreeMap<K,V>
                     rotateRight(parentOf(parentOf(x)));
                 }
             }
-            // 父节点是爷爷节点的右孩子
+
+            // 父节点是爷爷节点的右孩子（对称处理）
             else {
+                // 左叔父
                 Entry<K,V> y = leftOf(parentOf(parentOf(x)));
+                // （Case1）左叔父的节点为红色
                 if (colorOf(y) == RED) {
+                    // 父节点为黑色
                     setColor(parentOf(x), BLACK);
+                    // 右叔父节点为黑色
                     setColor(y, BLACK);
+                    // 爷爷节点为红色
                     setColor(parentOf(parentOf(x)), RED);
+                    // 跳到爷爷节点继续操作，循环一轮
                     x = parentOf(parentOf(x));
-                } else {
+                }
+                // （Case3）父节点为红色，且左叔父节点为黑色
+                else {
+                    // （Case3.1）父亲为祖父的右孩子，且当前节点为父亲的左孩子。（RL）。转换完成，会变成 RR情况，继续执行
                     if (x == leftOf(parentOf(x))) {
                         x = parentOf(x);
+                        // 以父节点右旋
                         rotateRight(x);
                     }
+
+                    // （Case3.2）父节点为祖父的右孩子，且新节点为父节点的右孩子（RR）
                     setColor(parentOf(x), BLACK);
                     setColor(parentOf(parentOf(x)), RED);
+                    // 左旋祖父节点
                     rotateLeft(parentOf(parentOf(x)));
                 }
             }
@@ -2359,31 +2404,55 @@ public class TreeMap<K,V>
 
     /** From CLR */
     private void fixAfterDeletion(Entry<K,V> x) {
+        // 如果x节点不是根节点，并且x节点是黑色，则进行调整，当x是红色时则无需调整
         while (x != root && colorOf(x) == BLACK) {
+            // 如果x是父节点的左子树
             if (x == leftOf(parentOf(x))) {
+                // 保存x的兄弟节点sib
                 Entry<K,V> sib = rightOf(parentOf(x));
-
+                // （Case1）x不是根且N是黑色，且 兄弟为红色
                 if (colorOf(sib) == RED) {
+                    // 将兄弟节点设为黑色
                     setColor(sib, BLACK);
+                    // 将x的父节点设置为红色
                     setColor(parentOf(x), RED);
+                    // 对x的父节点进行左旋
                     rotateLeft(parentOf(x));
+                    // 拿到新的兄弟节点
                     sib = rightOf(parentOf(x));
                 }
-
+                // N不是根且N是黑色，且W为黑色，且W的左右子均为黑色
+                // 因为兄弟节点是红色的情况上面已经处理过，处理之后的兄弟节点必定是黑色，所以这里开始兄弟节点颜色都是黑色
                 if (colorOf(leftOf(sib))  == BLACK &&
                     colorOf(rightOf(sib)) == BLACK) {
+                    // (Case2) 兄弟节点是黑色，并且兄弟节点的两个子节点都是黑色
+                    // 这里设置兄弟节点为红色
                     setColor(sib, RED);
+                    // 取出x的父节点，如果是红色则会退出循环，再将父节点设为黑色（代码在最后面）
+                    // 如果父节点本来就是黑色，则会再次进入循环
+                    // (因为既然 PN,PS 路径上的黑节点数量相同而且比其他路径会少一个黑节点, 那何不将其整体看成了一个 N 节点! 这是递归原理.)
                     x = parentOf(x);
-                } else {
+                }
+                // 两个子节点不全为黑色
+                else {
+                    // N不是根且N是黑色，且W为黑色，且Nf为黑色，Nn为红色
+                    // (Case3)如果兄弟节点是黑色，兄弟节点是右孩子节点是黑色。黑色的方向和兄弟节点的方向一致。
                     if (colorOf(rightOf(sib)) == BLACK) {
+                        // 将左节点设置黑色，兄弟节点设为红色，然后对兄弟节点进行右旋
                         setColor(leftOf(sib), BLACK);
                         setColor(sib, RED);
+                        // x为左子进行右旋
                         rotateRight(sib);
+                        // 拿到新的兄弟节点
                         sib = rightOf(parentOf(x));
                     }
+
+                    // N不是根且N是黑色，且W为黑色，且Nf为红色，Nn为黑色
+                    // (Case4) 将兄弟节点的父节点和兄弟节点颜色互换，然后设置兄弟节点的右子节点为黑色，最后左旋父节点，完成修复
                     setColor(sib, colorOf(parentOf(x)));
                     setColor(parentOf(x), BLACK);
                     setColor(rightOf(sib), BLACK);
+                    // x为左子进行左旋
                     rotateLeft(parentOf(x));
                     x = root;
                 }
@@ -2393,6 +2462,7 @@ public class TreeMap<K,V>
                 if (colorOf(sib) == RED) {
                     setColor(sib, BLACK);
                     setColor(parentOf(x), RED);
+                    // 右旋
                     rotateRight(parentOf(x));
                     sib = leftOf(parentOf(x));
                 }
